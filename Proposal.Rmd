@@ -1,0 +1,99 @@
+---
+title: "Analysis Proposal: Predicting Song Popularity from Spotify Audio Attributes"
+author: "Jonathan Lu, Carrie Wang, Zixuan Wang, Kara Wong"
+date: "11/18/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE, message = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Names and NetIDs
+- Jonathan Lu - jjlu2
+- Carrie Wang - xueyuan2
+- Zixuan Wang - zixuanw4
+- Kara Wong - karaww2
+
+# Tentative Title
+Predicting Song Popularity from Spotify Audio Attributes
+
+# Description of Dataset
+This dataset provided by Kaggle provides song attributes for just under 19,000 songs that are availabe on Spotify. From some of the most beloved songs such as, Hey Jude, Bohemian Rhoapsody, and Mr. Brightside to lesser known songs, we aim to predict song popularity based on the other attributes given in this dataset. We have summarized these variables below:
+
+- `song_popularity`: A value between 0 and 100, with 100 being the most popular. Calculated by Spotify's algorithm based on total number of plays the track has had and how recent those plays are
+- `song_duration`: track length in milliseconds
+- `acousticness`: 0.0 to 1.0 confidence measure on how acoustic the track is, 1 representing high confidence
+- `danceability`: describes how suitable a track is for dancing based on tempo, rhythm stability, beat strength, and overall regularity; 0.0 being least danceable and 1.0 most danceable
+- `energy`: 0.0 to 1.0 representing perceptual measure of intensity and activity
+- `instrumentalness`: 0.0 to 1.0, with 1.0 reflecting that the song contains close to no vocals
+- `key`: overall key of the track; integers map to pitches using standard Pitch Class notation
+- `liveness`: detects the presence of an audience in the recording
+- `loudness`: overall loudness of a track in decibels
+- `audio_mode`: indicates the modality (major or minor) of the track
+- `speechiness`: detects presence of spoken words in teh track; i.e. the more the track is like a talk show, the closer this metric is to 1.0
+- `tempo`: overall estimated tempo of a track in beats per minute
+- `time_signature`: an estimated number of how many beats are in each bar or measure
+- `audio_valence`: describes the musical positiveness conveyed by the track
+
+# Citation and Source Data
+
+[Kaggle: 19,000 Spotify Songs](https://www.kaggle.com/edalrami/19000-spotify-songs)
+
+# Statistical Learning Task
+This dataset provides numerical values for the popularity score of a song. We hope to group these into ranges and classify which popularity group a song would belong to based on its musical attributes. This will be a classification task. We may also consider either a binomial classification (popular vs not-popular), the cutoff of which would be arbitrarily decided or a regression model in which we would round the results to the nearest integer.
+
+# Evidence data can be loaded
+```{r, cache=FALSE, message = FALSE}
+library(dplyr)
+library(nnet)
+library(ggplot2)
+```
+
+
+```{r load-data}
+data = read.csv("data/song_data.csv")
+head(data)
+```
+
+# Distribution of Song Popularity
+
+```{r plot-popularity}
+data %>% 
+  ggplot(aes(x = song_popularity, color = "firebrick")) +
+  geom_density() + 
+  theme(legend.position = "none")
+```
+
+# Quick multinomial classifcation model
+```{r mod, message = FALSE}
+data = data %>% 
+  mutate( pop_class = as.factor(case_when(
+    song_popularity <= 10 ~ "J",
+    song_popularity > 10 & song_popularity <= 20 ~ "I",
+    song_popularity > 20 & song_popularity <= 30 ~ "H",
+    song_popularity > 30 & song_popularity <= 40 ~ "G",
+    song_popularity > 40 & song_popularity <= 50 ~ "F",
+    song_popularity > 50 & song_popularity <= 60 ~ "E",
+    song_popularity > 60 & song_popularity <= 70 ~ "D",
+    song_popularity > 70 & song_popularity <= 80 ~ "C",
+    song_popularity > 80 & song_popularity <= 90 ~ "B",
+    song_popularity > 90 & song_popularity <= 100 ~ "A"
+  )) )
+
+n = nrow(data)
+trn_index = sample(1:n, n*0.75)
+trn = data[trn_index,]
+tst = data[-trn_index,]
+
+mn_mod = multinom(pop_class ~ . - song_name,
+    data = trn,
+    trace = FALSE)
+
+pred = predict(mn_mod, tst)
+act = tst$pop_class
+
+accuracy = mean(act == pred)
+accuracy
+```
+
