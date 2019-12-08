@@ -1,0 +1,88 @@
+---
+title: "How Popular Is Your Music"
+author: 
+- "Jonathan Lu"
+- "Kara Wong"
+- "Carrie Wang"
+- "Zixuan Wang"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document: 
+    theme: cosmo
+    toc: yes
+urlcolor: BrickRed
+---
+
+***
+
+
+```{r, setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.align = 'center', message = FALSE, warning = FALSE)
+```
+
+```{r, load-packages, include = FALSE}
+library(tidyverse)
+library(caret)
+library(knitr)
+library(kableExtra)
+library(glmnet)
+library(DMwR)
+library(ggplot2)
+```
+
+# Abstract
+
+> SAMPLE TEXT
+
+***
+
+# Introduction
+
+## Follow layout on Gdoc
+
+***
+
+# Methods
+
+## Data
+
+### Follow guidlines on gdoc
+
+```{r load-data, message = FALSE}
+spot_data = read_csv("./data/song_data.csv")
+```
+
+## Modeling
+
+- RANGER / RANDOM FOREST
+- XGBOOST
+- LINEAR MODELS
+
+
+## Evaluation
+
+
+***
+
+# Results
+
+
+***
+
+# Discussion
+
+***
+
+# Appendix
+
+## Data Dictionary
+
+- `TEMP` - TEMP ok ok ok ok ok ok 
+
+
+## EDA
+
+```{r EDA, warning = FALSE}
+
+```
+
