@@ -1,4 +1,4 @@
-# STAT-432-Final-Project
+# STAT 432 Final Project
 
 Here's a rough github for all of our stuff related to the final project
 
@@ -14,4 +14,6 @@ The simplest way to get this project into R is through the project manager built
 
 ## Working on this project
 
-Honestly this is hard
+Here's where almost all of your interactions with git will be done through
+
+![](images/Overall.png)
