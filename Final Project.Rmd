@@ -1,0 +1,285 @@
+---
+title: "Final Report: Predicting Song Popularity from Spotify Audio Attributes"
+author: "Jonathan Lu, Carrie Wang, Zixuan Wang, Kara Wong"
+date: "12/11/2019"
+output: html_document
+---
+
+```{r, setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.align = "center", 
+                      cache = TRUE, autodep = TRUE)
+```
+
+```{r, load-packages, include = FALSE, message = FALSE}
+library("tidyverse")
+library("caret")
+library("rpart")
+library("knitr")
+library("kableExtra")
+library("tibble")
+library("readr")
+library("rsample")
+library("randomForest")
+library("gbm")
+library("xgboost")
+library("nnet")
+library("ranger")
+library("e1071")
+library("randomForest")
+library("glmnet")
+```
+
+***
+
+# Abstract
+
+> Statistical learning methods were applied to song popularity data in order to predict song popularity based on song attributes. A variety of learning techniques were explored and validated. Random forest methods show great promise in prediction ability. Due to a relatively small data size and class imbalance, a much larger dataset should be used to train models before being put into use.
+
+***
+
+# Introduction
+
+Spotify[^1] is a popular online music streaming service. It offers streaming of over 30 million songs. Spotify rates song popularity based on their attributes such as duration, acousticness, and danceability using its own algorithm, and it allows web developers to download the information via Spotify Web API[^2]. Song popularity is a helpful and fun information for both fans and artists to know for the following reasons. It will be helpful for artists to know how popular their new songs or albums will be so that they can 1. cater to the general public by adding "filler songs" that increase the overall popularity of their productions, and 2. assess and convince sponsors/music publishers to promote their songs/albums. It will be interesting for fans to know how popular their playlists are without them having to mess with Spotify's API as well. 
+
+In an attempt to construct a tool to predict song popularity, statistical learning techniques have been applied to song popularity data downloaded from Kaggle[^3]. The goal of this model would be to predict song popularity from song attributes that will achieve the above stated purposes. The results show potential to use these models to predict song popularity. However, more data should be collected and analyzed before putting this model into use. 
+
+***
+
+# Methods
+
+## Data
+
+```{r, read-data, data-wrangling, message = FALSE}
+data = read.csv("/Users/Carrie/Desktop/song_data.csv")
+
+# Eliminate song_name from the dataset
+song_data = data %>% select(-c(song_name, energy))
+
+# Print first rows of the dataset
+head(song_data)
+```
+
+```{r, data-splitting}
+set.seed(42)
+# test-train split
+tst_trn_split = initial_split(song_data, prop = 0.80)
+song_trn = training(tst_trn_split)
+song_tst = testing(tst_trn_split)
+# estimation-validation split
+est_val_split = initial_split(song_trn, prop = 0.80)
+song_est = training(est_val_split)
+song_val = testing(est_val_split)
+# create x matrix (estimation, validation, train, and test) for use with cv.glmnet()
+song_trn_x = model.matrix(song_popularity~ ., data = song_trn)[, -1]
+song_est_x = model.matrix(song_popularity~ ., data = song_est)[, -1]
+song_val_x = model.matrix(song_popularity~ ., data = song_val)[, -1]
+song_tst_x = model.matrix(song_popularity ~ ., data = song_tst)[, -1]
+```
+
+The dataset used for this analysis contains just under 19,000 songs available on Spotify and their attributes such as duration, acousticness, danceability, liveliness, and popularity. Song popularity, which is used as the response variable in this analysis, are numerical values ranging from 0 to 100, with 100 being the most popular and 0 being the least. The values are calculated by Spotify's algorithm based on total number of plays the track has had and how recent those plays are. A full description of the each of the variables in the dataset is included in the Appendix. The data was accessed through Kaggle[^3] where it was put together by a Kaggle User who used Spotify's Web API[^2] service to obtain song attributes. Spotify has over 30 million songs in the Spotify library, so 19,000 songs contained in this dataset is just a very small subset of the data. 
+
+The data is highly imbalanced as the majority of observations have `song_popularity` value of around 60, and the values are right-skewed. 
+
+For the purpose of this analysis, `song_name` information is eliminated because it is not a relevant feature used in the prediction. Eliminating `song_name` speeds up calculation. In preparation for model training, a training dataset is created using 80% of the provided data. Within the training dataset, an estimation dataset is created using 80% of the training dataset. 
+
+Some exploratory data analysis can be found in the appendix.
+
+## Modeling
+
+In order to predict the popularity of songs, two modeling techniques were considered: linear models and tree-based models. Specifically, a simple linear model with all availabel features, a linear model with significant features, a generalized regression model using 5-fold crossvalidation, a random forest model from `randomForest` package, a ridge regression model, and an Xgboost model are used.
+
+- A simple linear model using all available features fit to the estimation data.
+
+```{r, linear-models, echo = TRUE, message = FALSE, warning = FALSE}
+lm_mod1 = lm(song_popularity ~ ., data = song_est)
+summary(lm_mod1)
+```
+
+- A linear regression with reduced features fit to estimation data.
+
+```{r, lm-reduced, echo = TRUE, message = FALSE, warning = FALSE}
+lm_mod2 = lm(song_popularity ~ song_duration_ms + danceability + instrumentalness + liveness + loudness + audio_valence, data = song_est)
+summary(lm_mod2)
+```
+
+- A generalized linear model using 5-fold cross validation fit to estimation dataset.
+
+```{r, cv-control-glm, echo = TRUE, message = FALSE, warning = FALSE}
+cv = trainControl(method = "cv", number = 5)
+```
+
+```{r, glm, echo = TRUE, message = FALSE, warning = FALSE}
+set.seed(42)
+mod_glm = train(song_popularity ~ ., data = song_est, 
+                     method = "glm", 
+                     metric = "RMSE", 
+                     trControl = cv)
+```
+
+- A random forest model used for regression from the `randomForest` package fit to the estimation data.
+
+```{r}
+set.seed(42)
+```
+
+```{r, random-forest, echo = TRUE, message = FALSE, warning = FALSE}
+rf_mod = randomForest(song_popularity ~ .,
+                      ntree = 500,
+                      data = song_est)
+```
+
+- A ridge regression model using cv.glmnet() from the `glmnet` package fit to the estimation data, using 10-fold cross-validation for lambda.
+
+```{r, ridge-regression, echo = TRUE, message = FALSE, warning = FALSE}
+set.seed(42)
+lambdas = 10^seq(3, -2, by = -.1)
+
+glmnet_mod = cv.glmnet(song_est_x, song_est$song_popularity, alpha = 0, lambda = lambdas, nfolds = 10)
+```
+
+- An Xgboost model using the `caret` package fit to the estimation data, using 5-fold crossvalidation.
+
+```{r, Xgboost-model, echo = TRUE, message = FALSE, warning = FALSE}
+xgb_mod = train(song_popularity ~ ., data = song_est,
+                      method = "xgbTree",
+                      trControl = trainControl(method = "cv", number = 5),
+                      tuneLength = 2)
+```
+
+Models selection and evaluation is discussed in the results section.
+
+## Evaluation
+
+To evaluate the ability to predict song_popularity, the data was split into estimation, validation, and testing sets. Error metrics are reported using the validation data in this section.
+
+```{r, rmse-function}
+calc_rmse = function(actual, predicted) {
+  sqrt(mean( (actual - predicted) ^ 2) )
+}
+```
+
+```{r, calc-validation-error-lm}
+pred_lm_mod1 = predict(lm_mod1, song_val)
+lm_mod1_rmse = calc_rmse(actual = song_val$song_popularity, predicted = pred_lm_mod1)
+
+pred_lm_mod2 = predict(lm_mod2, song_val)
+lm_mod2_rmse = calc_rmse(actual = song_val$song_popularity, predicted = pred_lm_mod2)
+```
+
+```{r, calc-validation-error-glm}
+pred_glm = predict(mod_glm, song_val)
+glm_rmse = calc_rmse(actual = song_val$song_popularity, predicted = pred_glm)
+```
+
+```{r, calc-validation-error-rf}
+set.seed(42)
+pred_rf = predict(rf_mod, song_val)
+rf_rmse = calc_rmse(actual = song_val$song_popularity, predicted = pred_rf)
+```
+
+```{r, calc_validation_error_ridge}
+set.seed(42)
+pred_glmnet = predict(glmnet_mod, song_val_x)
+glmnet_rmse = calc_rmse(actual = song_val$song_popularity, predicted = pred_glmnet)
+```
+
+```{r, calc_validation_error_xgb}
+set.seed(42)
+pred_xgb = predict(xgb_mod, song_val)
+xgb_rmse = calc_rmse(actual = song_val$song_popularity, predicted = pred_xgb)
+```
+
+```{r, numeric-results}
+tibble(
+  "Model" = c("Simple Linear", "Reduced Linear", "GLM", "Random Forest", "Ridge Regression", "Xgbost"),
+  "Validation RMSE" = c(lm_mod1_rmse,
+                        lm_mod2_rmse,
+                        glm_rmse,
+                        rf_rmse,
+                        glmnet_rmse,
+                        xgb_rmse)
+) %>% 
+  kable(digits = 2) %>% 
+  kable_styling("striped", full_width = FALSE)
+```
+
+```{r, graphical-results, fig.height = 4, fig.width = 12}
+par(mfrow = c(1, 3))
+
+axis_limits = c(0, 100)
+
+plot(predict(rf_mod, song_val), song_val$song_popularity,
+     xlim = axis_limits, ylim = axis_limits, pch = 19, col = "firebrick",
+     xlab = "Predicted", ylab = "Actual", 
+     main = "Model: Random Forest | Data: Validation")
+abline(a = 0, b = 1, col = "darkgrey")
+grid()
+```
+
+***
+
+# Results
+
+The table below shows the result of song_popularity predictions on the test data using a random forest model fit to the training data.
+
+```{r, test-results}
+# Fit random forest model to the training data
+set.seed(42)
+rf_mod_trn = randomForest(song_popularity ~ .,
+                      ntree = 500,
+                      data = song_trn)
+# Calculate test RMSE
+rf_mod_tst_rmse = calc_rmse(actual = song_tst$song_popularity, predicted = predict(rf_mod_trn, song_tst))
+
+# Report test RMSE
+tibble("Model" = "Random Forest Model",
+       "Test RMSE" = rf_mod_tst_rmse) %>% 
+kable(digits = 2) %>% 
+kable_styling("striped", full_width = FALSE)
+```
+
+***
+
+# Discussion
+
+After evaluation, the chosen model, a random forest model, achieves a test RMSE of `r rf_mod_tst_rmse`. This error is rather large and makes predictions relatively volatile. Additionally, due to class imbalance, a lot of the predictions are centered around 40-60 range. By examining the actual versus predicted plot of the validation data, we see that song popularity predicted to be 50 can actually be 0. Given these errors, it should be noted that this model is not particularly useful in predicting song popularity. More data could be gathered to train models, and class imbalance problem should be addressed in the future. 
+
+***
+
+# Appendix
+
+## Data Dictionary
+
+- `song_popularity`: A value between 0 and 100, with 100 being the most popular. Calculated by Spotify's algorithm based on total number of plays the track has had and how recent those plays are
+- `song_duration`: track length in milliseconds
+- `acousticness`: 0.0 to 1.0 confidence measure on how acoustic the track is, 1 representing high confidence
+- `danceability`: describes how suitable a track is for dancing based on tempo, rhythm stability, beat strength, and overall regularity; 0.0 being least danceable and 1.0 most danceable
+- `energy`: 0.0 to 1.0 representing perceptual measure of intensity and activity
+- `instrumentalness`: 0.0 to 1.0, with 1.0 reflecting that the song contains close to no vocals
+- `key`: overall key of the track; integers map to pitches using standard Pitch Class notation
+- `liveness`: detects the presence of an audience in the recording
+- `loudness`: overall loudness of a track in decibels
+- `audio_mode`: indicates the modality (major or minor) of the track
+- `speechiness`: detects presence of spoken words in teh track; i.e. the more the track is like a talk show, the closer this metric is to 1.0
+- `tempo`: overall estimated tempo of a track in beats per minute
+- `time_signature`: an estimated number of how many beats are in each bar or measure
+- `audio_valence`: describes the musical positiveness conveyed by the track 
+
+For additional information, see documentation on Kaggle.[^3]
+
+## EDA
+
+```{r, Distribution-of-Song-Popularity}
+data %>% 
+  ggplot(aes(x = song_popularity, color = "firebrick")) +
+  geom_density() + 
+  theme(legend.position = "none")
+```
+
+***
+
+[^1]: [Wikipedia: Spotify](https://simple.wikipedia.org/wiki/Spotify)
+[^2]: [Spotify: API](https://developer.spotify.com/documentation/web-api/reference/tracks/get-audio-features/)
+[^3]: [Kaggle: 19,000 Spotify Songs](https://www.kaggle.com/edalrami/19000-spotify-songs)
+
+
