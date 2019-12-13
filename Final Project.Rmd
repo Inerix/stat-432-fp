@@ -13,20 +13,16 @@ knitr::opts_chunk$set(echo = FALSE, fig.align = "center",
 ```{r, load-packages, include = FALSE, message = FALSE}
 library("tidyverse")
 library("caret")
-library("rpart")
 library("knitr")
 library("kableExtra")
-library("tibble")
-library("readr")
-library("rsample")
 library("randomForest")
 library("gbm")
 library("xgboost")
 library("nnet")
 library("ranger")
 library("e1071")
-library("randomForest")
 library("glmnet")
+library("rsample")
 ```
 
 ***
@@ -34,6 +30,8 @@ library("glmnet")
 # Abstract
 
 > Statistical learning methods were applied to song popularity data in order to predict song popularity based on song attributes. A variety of learning techniques were explored and validated. Random forest methods show great promise in prediction ability. Due to a relatively small data size and class imbalance, a much larger dataset should be used to train models before being put into use.
+
+## not really sure about what class imbalance
 
 ***
 
@@ -49,17 +47,15 @@ In an attempt to construct a tool to predict song popularity, statistical learni
 
 ## Data
 
-```{r, read-data, data-wrangling, message = FALSE}
-data = read.csv("/Users/Carrie/Desktop/song_data.csv")
+```{r read-data, message = FALSE}
+data = read.csv("data/song_data.csv")
 
 # Eliminate song_name from the dataset
-song_data = data %>% select(-c(song_name, energy))
-
-# Print first rows of the dataset
-head(song_data)
+song_data = data %>% 
+  select(-song_name, -energy)
 ```
 
-```{r, data-splitting}
+```{r data-splitting}
 set.seed(42)
 # test-train split
 tst_trn_split = initial_split(song_data, prop = 0.80)
@@ -271,7 +267,7 @@ For additional information, see documentation on Kaggle.[^3]
 
 ```{r, Distribution-of-Song-Popularity}
 data %>% 
-  ggplot(aes(x = song_popularity, color = "firebrick")) +
+  ggplot(aes(x = song_popularit y, color = "firebrick")) +
   geom_density() + 
   theme(legend.position = "none")
 ```
