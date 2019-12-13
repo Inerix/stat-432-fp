@@ -1,17 +1,18 @@
 ---
-title: 'Final Report: Predicting Song Popularity from Spotify Audio Attributes'
+title: "How Popular is Your Music"
 author: "Jonathan Lu, Carrie Wang, Zixuan Wang, Kara Wong"
 date: "12/11/2019"
 output:
-  pdf_document: default
-  html_document: default
+  html_document: 
+    theme: cosmo
+    toc: true
 ---
 
-```{r, setup, include = FALSE}
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(echo = FALSE, fig.align = "center", autodep = TRUE, message = FALSE, warning = FALSE)
 ```
 
-```{r, load-packages, include = FALSE}
+```{r load-packages, include = FALSE}
 library("tidyverse")
 library("caret")
 library("knitr")
@@ -37,9 +38,13 @@ library("glmnet")
 
 # Introduction
 
-Spotify[^1] is a popular online music streaming service. It offers streaming of over 30 million songs. Spotify rates song popularity based on their attributes such as duration, acousticness, and danceability using its own algorithm, and it allows web developers to download the information via Spotify Web API[^2]. Song popularity is a helpful and fun information for both fans and artists to know for the following reasons. It will be helpful for artists to know how popular their new songs or albums will be so that 1. cater to the general public by adding "filler songs" that increase the overall popularity of their productions, and 2. assess and convince sponsors/music publishers to promote their songs/albums. It will be interesting for fans to know how popular their playlists are without them having to mess with Spotify's API as well. 
+In today's day and age, every one uses some music streaming platform whether it be Spotify, Apple Music, or Google Play Music. Spotify[^1] is one of the more popular service with over 217 million active monthly users worldwide[^4]. For $9.99 a year, Spotify offers users unlimited access to its 50 million + songs library. While these numbers are impressive, it's important to note that in 2018, the music industry topped \$19 billion dollars in sales. Our initial interest in doing the analysis on this data set was due to its association with music and Spotify. However, we then realized that there could definitely be some monetary implications behind this analysis due to the sheer size of the music industry.
 
-In an attempt to construct a tool to predict song popularity based on their attributes, statistical learning techniques have been applied to song popularity data downloaded from Kaggle[^3]. The goal of this model would be to predict song popularity from song attributes that will achieve the above stated purposes. The results show potentials to use these models to predict song popularity. However, more data should be collected and analyzed before putting this model into use. 
+In a dystopian future of sorts, if a model could be trained well enough, newer artists could use it as a tool to break through the extremely gate-keeping nature of the music industry as a sort of proof-of-concept in regards to their style. Since this model is being built on nothing more than the acoustic qualities of the music, it could provide an unbiased view on whether or not a song / album could be popular. If it turns out that the album is predicted to underwhelm, artists could take the hint and add in filler songs that cater to the public in an attempt to draw more attention to their profile. Adding filler songs could also boost help the artists secure funding for their next venture. Given that there are two main sides to the music industry, the artists and the labels, the music labels could also use a model like this to increase their profits by focusing their advertisements on select artists, or picking up new artists that the model deems "popular". While it seems extremely unlikely that a label would base all of their signings on a model, the model could provide them a baseline of sorts from which they can add more subjective observations.
+
+For each song in its library, Spotify keeps track of its popularity, duration, acousticness, danceability, and many other acoustic qualities. While the algorithm by which Spotify calculates a song's popularity is hidden from the general public, it's loosely based on the amount of plays the song has recently. Spotify allows web developers and other users to query this information via their Web API[^2] which is how all the data for this dataset was accumulated.
+
+In an attempt to construct a tool to predict song popularity based on their attributes, statistical learning techniques have been applied to song popularity data downloaded from Kaggle[^3]. The goal of this model would be to predict song popularity from song attributes for the reasons outline above. The results show even the best models built on this data failed to predict the popularity of a song. However, further improvements to these models could be explored by the addition of characteristics other than just acoustic ones.
 
 ***
 
@@ -136,7 +141,7 @@ mod_glm = train(song_popularity ~ ., data = song_trn,
                      trControl = cv_trn_5)
 ```
 
-```{r glm-rmse}
+```{r glm-rmse, eval = FALSE}
 glm_rmse = mod_glm$results[,2]
 ```
 
@@ -191,20 +196,18 @@ Models selection and evaluation is discussed in the results section.
 
 To evaluate the ability to predict song_popularity, the data was split into estimation, validation, and testing sets. Error metrics are reported using the validation data in this section.
 
-```{r, rmse-function}
+```{r rmse-function}
 calc_rmse = function(actual, predicted) {
   sqrt(mean( (actual - predicted) ^ 2) )
 }
 ```
 
 
-```{r, numeric-results}
+```{r numeric-results}
 tibble(
-  "Model" = c("Simple Linear", "Reduced Linear", "GLM", 
-              "Random Forest", "Ridge Regression", "XGBoost"),
+  "Model" = c("Simple Linear", "Reduced Linear", "Random Forest", "Ridge Regression", "XGBoost"),
   "Validation RMSE" = c(lm_1_rmse,
                         lm_2_rmse,
-                        glm_rmse,
                         rf_rmse,
                         glmnet_rmse,
                         xgb_rmse)
@@ -213,7 +216,7 @@ tibble(
   kable_styling("striped", full_width = FALSE)
 ```
 
-```{r, graphical-results, fig.height = 4, fig.width = 12}
+```{r graphical-results, fig.height = 4, fig.width = 12, eval = FALSE}
 par(mfrow = c(1, 3))
 
 axis_limits = c(0, 100)
@@ -232,7 +235,7 @@ grid()
 
 The table below shows the result of song_popularity predictions on the test data using a random forest model fit to the training data.
 
-```{r, test-results}
+```{r test-results}
 # Predict RF on test set
 pred = round(predict(rf_mod, song_tst), 0)
 act = song_tst$song_popularity
@@ -352,5 +355,6 @@ gridExtra::grid.arrange(p02, p03, p07, p08, p09, p10, ncol = 3)
 [^1]: [Wikipedia: Spotify](https://simple.wikipedia.org/wiki/Spotify)
 [^2]: [Spotify: API](https://developer.spotify.com/documentation/web-api/reference/tracks/get-audio-features/)
 [^3]: [Kaggle: 19,000 Spotify Songs](https://www.kaggle.com/edalrami/19000-spotify-songs)
+[^4]: [Spotify Growth numbers](https://www.theverge.com/2019/4/29/18522297/spotify-100-million-users-apple-music-podcasting-free-users-advertising-voice-speakers)
 
 
