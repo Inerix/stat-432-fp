@@ -50,8 +50,21 @@ In an attempt to construct a tool to predict song popularity based on their attr
 ```{r read-data}
 data = read.csv("data/song_data.csv")
 
+data_cat = data %>% 
+  mutate( pop_class = as.factor(case_when(
+    song_popularity <= 50 ~ "F",
+    song_popularity > 50 & song_popularity <= 60 ~ "E",
+    song_popularity > 60 & song_popularity <= 70 ~ "D",
+    song_popularity > 70 & song_popularity <= 80 ~ "C",
+    song_popularity > 80 & song_popularity <= 90 ~ "B",
+    song_popularity > 90 & song_popularity <= 100 ~ "A"
+  )) )
+
 # Eliminate song_name from the dataset
 song_data = data %>% 
+  select(-song_name, -energy)
+
+song_data_cat = data_cat %>% 
   select(-song_name, -energy)
 ```
 
@@ -61,6 +74,9 @@ set.seed(42)
 idx = createDataPartition(song_data$song_popularity, p = .8, list = FALSE)
 song_trn = song_data[idx,]
 song_tst = song_data[-idx,]
+
+song_trn_cat = song_data_cat[idx,]
+song_tst_cat = song_data_cat[-idx,]
 
 # create x matrix (estimation, validation, train, and test) for use with cv.glmnet()
 song_trn_x = model.matrix(song_popularity~ ., data = song_trn)[, -1]
@@ -91,53 +107,83 @@ lm_1 = train(song_popularity ~ .,
              trControl = cv_trn_5)
 ```
 
+```{r lm1-rmse}
+lm_1_rmse = lm_1$results[,2]
+```
+
 - A linear regression with reduced features fit to estimation data.
 
 ```{r lm-reduced, echo = TRUE}
 set.seed(42)
-lm_2 = train(song_popularity ~ song_duration_ms + danceability + instrumentalness + liveness + loudness + audio_valence,
+lm_2 = train(song_popularity ~ tempo + danceability + instrumentalness + 
+               liveness + loudness + audio_valence,
              data = song_trn,
              method = "lm",
              trControl = cv_trn_5)
+```
+
+```{r lm2-rmse}
+lm_2_rmse = lm_2$results[,2]
 ```
 
 - A generalized linear model using 5-fold cross validation fit to estimation dataset.
 
 ```{r glm, echo = TRUE, eval = FALSE}
 set.seed(42)
-mod_glm = train(song_popularity ~ ., data = song_est, 
+mod_glm = train(song_popularity ~ ., data = song_trn, 
                      method = "glm", 
                      metric = "RMSE", 
                      trControl = cv_trn_5)
 ```
 
+```{r glm-rmse}
+glm_rmse = mod_glm$results[,2]
+```
+
 - A random forest model used for regression from the `randomForest` package fit to the estimation data.
 
-```{r, random-forest, echo = TRUE}
+```{r random-forest, echo = TRUE}
 set.seed(42)
 rf_mod = randomForest(song_popularity ~ .,
-                      ntree = 500,
-                      data = song_est,
+                      data = song_trn,
                       trControl = cv_trn_5)
+```
+
+```{r rf-rmse}
+rf_rmse = sqrt(rf_mod$mse[500])
 ```
 
 - A ridge regression model using cv.glmnet() from the `glmnet` package fit to the estimation data, using 10-fold cross-validation for lambda.
 
-```{r, ridge-regression, echo = TRUE}
-set.seed(42)
+```{r ridge-regression, echo = TRUE}
 lambdas = 10^seq(3, -2, by = -.1)
 
-glmnet_mod = cv.glmnet(song_est_x, song_est$song_popularity, alpha = 0, lambda = lambdas, nfolds = 10)
+set.seed(42)
+glmnet_mod = train(song_popularity ~ .,
+                   data = song_trn,
+                   method = "glmnet",
+                   trControl = cv_trn_5,
+                   tuneGrid = expand.grid(alpha = 0, lambda = seq(0.001,2,by = 0.001)))
 ```
 
-- An Xgboost model using the `caret` package fit to the estimation data, using 5-fold crossvalidation.
+```{r glmnet-rmse}
+glmnet_rmse = min(glmnet_mod$results[,3])
+```
 
-```{r, Xgboost-model, echo = TRUE}
-xgb_mod = train(song_popularity ~ ., data = song_est,
+- An XGBoost model using the `caret` package fit to the estimation data, using 5-fold crossvalidation.
+
+```{r xgboost-model, echo = TRUE}
+set.seed(42)
+xgb_mod = train(song_popularity ~ ., data = song_trn,
                       method = "xgbTree",
                       trControl = trainControl(method = "cv", number = 5),
                       tuneLength = 2)
 ```
+
+```{r xgb_rmse}
+xgb_rmse = min(xgb_mod$results[,8])
+```
+
 
 Models selection and evaluation is discussed in the results section.
 
@@ -151,40 +197,11 @@ calc_rmse = function(actual, predicted) {
 }
 ```
 
-```{r, calc-validation-error-lm}
-pred_lm_1 = predict(lm_1, song_val)
-lm_1_rmse = calc_rmse(actual = song_val$song_popularity, predicted = pred_lm_1)
-
-pred_lm_2 = predict(lm_2, song_val)
-lm_2_rmse = calc_rmse(actual = song_val$song_popularity, predicted = pred_lm_2)
-```
-
-```{r, calc-validation-error-glm}
-pred_glm = predict(mod_glm, song_val)
-glm_rmse = calc_rmse(actual = song_val$song_popularity, predicted = pred_glm)
-```
-
-```{r, calc-validation-error-rf}
-set.seed(42)
-pred_rf = predict(rf_mod, song_val)
-rf_rmse = calc_rmse(actual = song_val$song_popularity, predicted = pred_rf)
-```
-
-```{r, calc_validation_error_ridge}
-set.seed(42)
-pred_glmnet = predict(glmnet_mod, song_val_x)
-glmnet_rmse = calc_rmse(actual = song_val$song_popularity, predicted = pred_glmnet)
-```
-
-```{r, calc_validation_error_xgb}
-set.seed(42)
-pred_xgb = predict(xgb_mod, song_val)
-xgb_rmse = calc_rmse(actual = song_val$song_popularity, predicted = pred_xgb)
-```
 
 ```{r, numeric-results}
 tibble(
-  "Model" = c("Simple Linear", "Reduced Linear", "GLM", "Random Forest", "Ridge Regression", "Xgbost"),
+  "Model" = c("Simple Linear", "Reduced Linear", "GLM", 
+              "Random Forest", "Ridge Regression", "XGBoost"),
   "Validation RMSE" = c(lm_1_rmse,
                         lm_2_rmse,
                         glm_rmse,
@@ -216,13 +233,23 @@ grid()
 The table below shows the result of song_popularity predictions on the test data using a random forest model fit to the training data.
 
 ```{r, test-results}
-# Fit random forest model to the training data
-set.seed(42)
-rf_mod_trn = randomForest(song_popularity ~ .,
-                      ntree = 500,
-                      data = song_trn)
+# Predict RF on test set
+pred = round(predict(rf_mod, song_tst), 0)
+act = song_tst$song_popularity
+
 # Calculate test RMSE
-rf_mod_tst_rmse = calc_rmse(actual = song_tst$song_popularity, predicted = predict(rf_mod_trn, song_tst))
+rf_mod_tst_rmse = calc_rmse(actual = act, predicted = pred)
+
+# Actual vs. Predicted
+gd01 = data.frame("act" = act, "pred" = pred)
+gd01 %>% 
+  ggplot() +
+  geom_point(aes(x = act, y = pred)) +
+  geom_abline(intercept = 0, slope = 1, color = "red") +
+  theme(legend.position = "none") +
+  ggtitle("Actual vs. Predicted (Testing Set)") + 
+  xlab("Actual") +
+  ylab("Predicted")
 
 # Report test RMSE
 tibble("Model" = "Random Forest Model",
@@ -264,10 +291,60 @@ For additional information, see documentation on Kaggle.[^3]
 ## EDA
 
 ```{r, Distribution-of-Song-Popularity}
-data %>% 
-  ggplot(aes(x = song_popularit y, color = "firebrick")) +
-  geom_density() + 
-  theme(legend.position = "none")
+p01 = song_trn %>% 
+  ggplot(aes(x = song_popularity)) +
+  geom_histogram(fill = "dodgerblue", bins = 30)
+
+p02 = song_trn_cat %>% 
+  ggplot(aes(x = key, col = pop_class)) +
+  geom_density()
+
+p03 = song_trn_cat %>% 
+  ggplot(aes(x = tempo, col = pop_class)) +
+  geom_density()
+
+p04 = song_trn_cat %>% 
+  ggplot(aes(x = song_duration_ms, col = pop_class)) +
+  geom_density()
+
+p05 = song_trn_cat %>% 
+  ggplot(aes(x = liveness, col = pop_class)) +
+  geom_density()
+
+p06 = song_trn_cat %>% 
+  ggplot(aes(x = time_signature, col = pop_class)) +
+  geom_density()
+
+p07 = song_trn_cat %>% 
+  ggplot(aes(x = acousticness, col = pop_class)) +
+  geom_density()
+
+p08 = song_trn_cat %>% 
+  ggplot(aes(x = loudness, col = pop_class)) +
+  geom_density()
+
+p09 = song_trn_cat %>% 
+  ggplot(aes(x = audio_valence, col = pop_class)) +
+  geom_density()
+
+p10 = song_trn_cat %>% 
+  ggplot(aes(x = danceability, col = pop_class)) +
+  geom_density()
+
+p11 = song_trn_cat %>% 
+  ggplot(aes(x = audio_mode, col = pop_class)) +
+  geom_density()
+
+p12 = song_trn_cat %>% 
+  ggplot(aes(x = instrumentalness, col = pop_class)) +
+  geom_density()
+
+p13 = song_trn_cat %>% 
+  ggplot(aes(x = speechiness, col = pop_class)) +
+  geom_density()
+
+p01
+gridExtra::grid.arrange(p02, p03, p07, p08, p09, p10, ncol = 3)
 ```
 
 ***
