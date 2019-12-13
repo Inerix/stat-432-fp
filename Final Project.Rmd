@@ -1,8 +1,10 @@
 ---
-title: "Final Report: Predicting Song Popularity from Spotify Audio Attributes"
+title: 'Final Report: Predicting Song Popularity from Spotify Audio Attributes'
 author: "Jonathan Lu, Carrie Wang, Zixuan Wang, Kara Wong"
 date: "12/11/2019"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r, setup, include = FALSE}
