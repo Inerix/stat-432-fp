@@ -243,8 +243,7 @@ kable_styling("striped", full_width = FALSE)
 
 After evaluation, the chosen model, a random forest model, achieves a test RMSE of `r rf_mod_tst_rmse`. This error is rather large and makes predictions relatively volatile. Additionally, due to class imbalance, a lot of the predictions are centered around 40-60 range. By examining the actual versus predicted plot of the validation data, we see that song popularity predicted to be 50 can actually be 0. 
 
-Given these errors, it should be noted that this model is not particularly useful in predicting song popularity. It can be improved in the following aspects. First, more data could be included to further investigation. Second, class imbalance problem should be addressed in the future. For example, picking data from different ranges and subsampling from each range can be a potential solution.
-
+Given these errors, it should be noted that this model is not particularly useful in predicting song popularity. It can be improved in the following aspects. First, more data could be included to further investigation. Second, class imbalance problem should be addressed in the future. For example, a potential solution could be picking data from different popularity ranges. Let's say, 0-20, 20-40, 40-60, 60-80, 80-100, respectively. Then, subsampling an equal amount of data for each range. 
 ***
 
 # Appendix
