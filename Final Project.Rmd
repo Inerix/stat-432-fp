@@ -1,8 +1,10 @@
 ---
-title: "Final Report: Predicting Song Popularity from Spotify Audio Attributes"
+title: 'Final Report: Predicting Song Popularity from Spotify Audio Attributes'
 author: "Jonathan Lu, Carrie Wang, Zixuan Wang, Kara Wong"
 date: "12/11/2019"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r, setup, include = FALSE}
@@ -37,9 +39,9 @@ library("rsample")
 
 # Introduction
 
-Spotify[^1] is a popular online music streaming service. It offers streaming of over 30 million songs. Spotify rates song popularity based on their attributes such as duration, acousticness, and danceability using its own algorithm, and it allows web developers to download the information via Spotify Web API[^2]. Song popularity is a helpful and fun information for both fans and artists to know for the following reasons. It will be helpful for artists to know how popular their new songs or albums will be so that they can 1. cater to the general public by adding "filler songs" that increase the overall popularity of their productions, and 2. assess and convince sponsors/music publishers to promote their songs/albums. It will be interesting for fans to know how popular their playlists are without them having to mess with Spotify's API as well. 
+Spotify[^1] is a popular online music streaming service. It offers streaming of over 30 million songs. Spotify rates song popularity based on their attributes such as duration, acousticness, and danceability using its own algorithm, and it allows web developers to download the information via Spotify Web API[^2]. Song popularity is a helpful and fun information for both fans and artists to know for the following reasons. It will be helpful for artists to know how popular their new songs or albums will be so that 1. cater to the general public by adding "filler songs" that increase the overall popularity of their productions, and 2. assess and convince sponsors/music publishers to promote their songs/albums. It will be interesting for fans to know how popular their playlists are without them having to mess with Spotify's API as well. 
 
-In an attempt to construct a tool to predict song popularity, statistical learning techniques have been applied to song popularity data downloaded from Kaggle[^3]. The goal of this model would be to predict song popularity from song attributes that will achieve the above stated purposes. The results show potential to use these models to predict song popularity. However, more data should be collected and analyzed before putting this model into use. 
+In an attempt to construct a tool to predict song popularity based on their attributes, statistical learning techniques have been applied to song popularity data downloaded from Kaggle[^3]. The goal of this model would be to predict song popularity from song attributes that will achieve the above stated purposes. The results show potentials to use these models to predict song popularity. However, more data should be collected and analyzed before putting this model into use. 
 
 ***
 
@@ -76,13 +78,13 @@ The dataset used for this analysis contains just under 19,000 songs available on
 
 The data is highly imbalanced as the majority of observations have `song_popularity` value of around 60, and the values are right-skewed. 
 
-For the purpose of this analysis, `song_name` information is eliminated because it is not a relevant feature used in the prediction. Eliminating `song_name` speeds up calculation. In preparation for model training, a training dataset is created using 80% of the provided data. Within the training dataset, an estimation dataset is created using 80% of the training dataset. 
+For the purpose of this analysis, `song_name` information is eliminated because it is not a relevant feature used in the prediction. Eliminating `song_name` speeds up calculation. In preparation for model training, a training dataset is created using 80% of the provided data，while the rest of the data is considered as testing data. Within the training dataset, an estimation dataset is created using 80% of the training dataset, and the remaining is constructed as validation data. 
 
 Some exploratory data analysis can be found in the appendix.
 
 ## Modeling
 
-In order to predict the popularity of songs, two modeling techniques were considered: linear models and tree-based models. Specifically, a simple linear model with all availabel features, a linear model with significant features, a generalized regression model using 5-fold crossvalidation, a random forest model from `randomForest` package, a ridge regression model, and an Xgboost model are used.
+In order to predict the popularity of songs, two modeling techniques were considered: linear models and tree-based models. Specifically, a simple linear model with all available features, a linear model with significant features, a generalized regression model using 5-fold crossvalidation, a random forest model from `randomForest` package, a ridge regression model, and an Xgboost model are used.
 
 - A simple linear model using all available features fit to the estimation data.
 
@@ -114,11 +116,8 @@ mod_glm = train(song_popularity ~ ., data = song_est,
 
 - A random forest model used for regression from the `randomForest` package fit to the estimation data.
 
-```{r}
-set.seed(42)
-```
-
 ```{r, random-forest, echo = TRUE, message = FALSE, warning = FALSE}
+set.seed(42)
 rf_mod = randomForest(song_popularity ~ .,
                       ntree = 500,
                       data = song_est)
@@ -238,7 +237,9 @@ kable_styling("striped", full_width = FALSE)
 
 # Discussion
 
-After evaluation, the chosen model, a random forest model, achieves a test RMSE of `r rf_mod_tst_rmse`. This error is rather large and makes predictions relatively volatile. Additionally, due to class imbalance, a lot of the predictions are centered around 40-60 range. By examining the actual versus predicted plot of the validation data, we see that song popularity predicted to be 50 can actually be 0. Given these errors, it should be noted that this model is not particularly useful in predicting song popularity. More data could be gathered to train models, and class imbalance problem should be addressed in the future. 
+After evaluation, the chosen model, a random forest model, achieves a test RMSE of `r rf_mod_tst_rmse`. This error is rather large and makes predictions relatively volatile. Additionally, due to class imbalance, a lot of the predictions are centered around 40-60 range. By examining the actual versus predicted plot of the validation data, we see that song popularity predicted to be 50 can actually be 0. 
+
+Given these errors, it should be noted that this model is not particularly useful in predicting song popularity. It can be improved in the following aspects. First, more data could be included to further investigation. Second, class imbalance problem should be addressed in the future. For example, picking data from different ranges and subsampling from each range can be a potential solution.
 
 ***
 
