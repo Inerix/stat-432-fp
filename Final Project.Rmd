@@ -8,11 +8,10 @@ output:
 ---
 
 ```{r, setup, include = FALSE}
-knitr::opts_chunk$set(echo = FALSE, fig.align = "center", 
-                      cache = TRUE, autodep = TRUE)
+knitr::opts_chunk$set(echo = FALSE, fig.align = "center", autodep = TRUE, message = FALSE, warning = FALSE)
 ```
 
-```{r, load-packages, include = FALSE, message = FALSE}
+```{r, load-packages, include = FALSE}
 library("tidyverse")
 library("caret")
 library("knitr")
@@ -24,7 +23,6 @@ library("nnet")
 library("ranger")
 library("e1071")
 library("glmnet")
-library("rsample")
 ```
 
 ***
@@ -49,7 +47,7 @@ In an attempt to construct a tool to predict song popularity based on their attr
 
 ## Data
 
-```{r read-data, message = FALSE}
+```{r read-data}
 data = read.csv("data/song_data.csv")
 
 # Eliminate song_name from the dataset
@@ -60,18 +58,15 @@ song_data = data %>%
 ```{r data-splitting}
 set.seed(42)
 # test-train split
-tst_trn_split = initial_split(song_data, prop = 0.80)
-song_trn = training(tst_trn_split)
-song_tst = testing(tst_trn_split)
-# estimation-validation split
-est_val_split = initial_split(song_trn, prop = 0.80)
-song_est = training(est_val_split)
-song_val = testing(est_val_split)
+idx = createDataPartition(song_data$song_popularity, p = .8, list = FALSE)
+song_trn = song_data[idx,]
+song_tst = song_data[-idx,]
+
 # create x matrix (estimation, validation, train, and test) for use with cv.glmnet()
 song_trn_x = model.matrix(song_popularity~ ., data = song_trn)[, -1]
-song_est_x = model.matrix(song_popularity~ ., data = song_est)[, -1]
-song_val_x = model.matrix(song_popularity~ ., data = song_val)[, -1]
 song_tst_x = model.matrix(song_popularity ~ ., data = song_tst)[, -1]
+
+cv_trn_5 = trainControl(method = "cv", number = 5)
 ```
 
 The dataset used for this analysis contains just under 19,000 songs available on Spotify and their attributes such as duration, acousticness, danceability, liveliness, and popularity. Song popularity, which is used as the response variable in this analysis, are numerical values ranging from 0 to 100, with 100 being the most popular and 0 being the least. The values are calculated by Spotify's algorithm based on total number of plays the track has had and how recent those plays are. A full description of the each of the variables in the dataset is included in the Appendix. The data was accessed through Kaggle[^3] where it was put together by a Kaggle User who used Spotify's Web API[^2] service to obtain song attributes. Spotify has over 30 million songs in the Spotify library, so 19,000 songs contained in this dataset is just a very small subset of the data. 
@@ -88,44 +83,47 @@ In order to predict the popularity of songs, two modeling techniques were consid
 
 - A simple linear model using all available features fit to the estimation data.
 
-```{r, linear-models, echo = TRUE, message = FALSE, warning = FALSE}
-lm_mod1 = lm(song_popularity ~ ., data = song_est)
-summary(lm_mod1)
+```{r linear-models, echo = TRUE}
+set.seed(42)
+lm_1 = train(song_popularity ~ .,
+             data = song_trn,
+             method = "lm",
+             trControl = cv_trn_5)
 ```
 
 - A linear regression with reduced features fit to estimation data.
 
-```{r, lm-reduced, echo = TRUE, message = FALSE, warning = FALSE}
-lm_mod2 = lm(song_popularity ~ song_duration_ms + danceability + instrumentalness + liveness + loudness + audio_valence, data = song_est)
-summary(lm_mod2)
+```{r lm-reduced, echo = TRUE}
+set.seed(42)
+lm_2 = train(song_popularity ~ song_duration_ms + danceability + instrumentalness + liveness + loudness + audio_valence,
+             data = song_trn,
+             method = "lm",
+             trControl = cv_trn_5)
 ```
 
 - A generalized linear model using 5-fold cross validation fit to estimation dataset.
 
-```{r, cv-control-glm, echo = TRUE, message = FALSE, warning = FALSE}
-cv = trainControl(method = "cv", number = 5)
-```
-
-```{r, glm, echo = TRUE, message = FALSE, warning = FALSE}
+```{r glm, echo = TRUE, eval = FALSE}
 set.seed(42)
 mod_glm = train(song_popularity ~ ., data = song_est, 
                      method = "glm", 
                      metric = "RMSE", 
-                     trControl = cv)
+                     trControl = cv_trn_5)
 ```
 
 - A random forest model used for regression from the `randomForest` package fit to the estimation data.
 
-```{r, random-forest, echo = TRUE, message = FALSE, warning = FALSE}
+```{r, random-forest, echo = TRUE}
 set.seed(42)
 rf_mod = randomForest(song_popularity ~ .,
                       ntree = 500,
-                      data = song_est)
+                      data = song_est,
+                      trControl = cv_trn_5)
 ```
 
 - A ridge regression model using cv.glmnet() from the `glmnet` package fit to the estimation data, using 10-fold cross-validation for lambda.
 
-```{r, ridge-regression, echo = TRUE, message = FALSE, warning = FALSE}
+```{r, ridge-regression, echo = TRUE}
 set.seed(42)
 lambdas = 10^seq(3, -2, by = -.1)
 
@@ -134,7 +132,7 @@ glmnet_mod = cv.glmnet(song_est_x, song_est$song_popularity, alpha = 0, lambda =
 
 - An Xgboost model using the `caret` package fit to the estimation data, using 5-fold crossvalidation.
 
-```{r, Xgboost-model, echo = TRUE, message = FALSE, warning = FALSE}
+```{r, Xgboost-model, echo = TRUE}
 xgb_mod = train(song_popularity ~ ., data = song_est,
                       method = "xgbTree",
                       trControl = trainControl(method = "cv", number = 5),
@@ -154,11 +152,11 @@ calc_rmse = function(actual, predicted) {
 ```
 
 ```{r, calc-validation-error-lm}
-pred_lm_mod1 = predict(lm_mod1, song_val)
-lm_mod1_rmse = calc_rmse(actual = song_val$song_popularity, predicted = pred_lm_mod1)
+pred_lm_1 = predict(lm_1, song_val)
+lm_1_rmse = calc_rmse(actual = song_val$song_popularity, predicted = pred_lm_1)
 
-pred_lm_mod2 = predict(lm_mod2, song_val)
-lm_mod2_rmse = calc_rmse(actual = song_val$song_popularity, predicted = pred_lm_mod2)
+pred_lm_2 = predict(lm_2, song_val)
+lm_2_rmse = calc_rmse(actual = song_val$song_popularity, predicted = pred_lm_2)
 ```
 
 ```{r, calc-validation-error-glm}
@@ -187,8 +185,8 @@ xgb_rmse = calc_rmse(actual = song_val$song_popularity, predicted = pred_xgb)
 ```{r, numeric-results}
 tibble(
   "Model" = c("Simple Linear", "Reduced Linear", "GLM", "Random Forest", "Ridge Regression", "Xgbost"),
-  "Validation RMSE" = c(lm_mod1_rmse,
-                        lm_mod2_rmse,
+  "Validation RMSE" = c(lm_1_rmse,
+                        lm_2_rmse,
                         glm_rmse,
                         rf_rmse,
                         glmnet_rmse,
