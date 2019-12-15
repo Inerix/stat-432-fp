@@ -32,8 +32,6 @@ library("glmnet")
 
 > Statistical learning methods were applied to song popularity data in order to predict song popularity based on song attributes. A variety of learning techniques were explored and validated. Random forest methods show great promise in prediction ability. Due to a relatively small data size and class imbalance, a much larger dataset should be used to train models before being put into use.
 
-## not really sure about what class imbalance
-
 ***
 
 # Introduction
@@ -256,6 +254,7 @@ After evaluation, the chosen model, a random forest model, achieves a test RMSE 
 
 For someone using this model to determine if they should invest in an artist's song production, we see that our model would steer someone to fund a project that would actually have low success while not allocating that money into some of the songs that would actually be more popular. Given these errors, it should be noted that this model is not particularly useful in predicting song popularity. It can be improved in the following aspects. First, more data could be included to further investigation. Second, class imbalance problem should be addressed in the future. For example, a potential solution could be picking data from different popularity ranges. Let's say, 0-20, 20-40, 40-60, 60-80, 80-100, respectively. Then, subsampling an equal amount of data for each range. These ranges could also be further explored, and have one range be 0-50 to denote a classification of "unpopular songs" being less than 50. We can expect that a classification as such would have a much higher accuracy rate than our current regression.
 
+We strongly recommend additional research to be conducted before implementing our model for its intended use.
 ***
 
 # Appendix
