@@ -434,7 +434,7 @@ summary {
 <h1>Methods</h1>
 <div id="data" class="section level2">
 <h2>Data</h2>
-<p>The dataset used for this analysis contains just under 19,000 songs available on Spotify and their attributes such as duration, acousticness, danceability, liveliness, and popularity. Song popularity, which is used as the response variable in this analysis, are numerical values ranging from 0 to 100, with 100 being the most popular and 0 being the least. The values are calculated by Spotify’s algorithm based on total number of plays the track has had and how recent those plays are. A full description of the each of the variables in the dataset is included in the Appendix. The data was accessed through Kaggle<a href="#fn5" class="footnote-ref" id="fnref5"><sup>5</sup></a> where it was put together by a Kaggle User who used Spotify’s Web API<a href="#fn6" class="footnote-ref" id="fnref6"><sup>6</sup></a> service to obtain song attributes. Spotify has over 30 million songs in the Spotify library, so 19,000 songs contained in this dataset is just a very small subset of the data.</p>
+<p>The dataset used for this analysis contains just under 19,000 songs available on Spotify and their attributes such as duration, acousticness, danceability, liveliness, and popularity. Song popularity, which is used as the response variable in this analysis, are numerical values ranging from 0 to 100, with 100 being the most popular and 0 being the least. The values are calculated by Spotify’s algorithm based on the total number of plays the track has had and how recent those plays are. A full description of the each of the variables in the dataset is included in the Appendix. The data was accessed through Kaggle<a href="#fn5" class="footnote-ref" id="fnref5"><sup>5</sup></a> where it was put together by a Kaggle User who used Spotify’s Web API<a href="#fn6" class="footnote-ref" id="fnref6"><sup>6</sup></a> service to obtain song attributes. Spotify has over 30 million songs in the Spotify library, so 19,000 songs contained in this dataset is just a very small subset of the data.</p>
 <p>The data is highly imbalanced as the majority of observations have <code>song_popularity</code> value of around 60, and the values are right-skewed.</p>
 <p>For the purpose of this analysis, <code>song_name</code> information is eliminated because it is not a relevant feature used in the prediction. Eliminating <code>song_name</code> speeds up calculation. In preparation for model training, a training dataset is created using 80% of the provided data，while the rest of the data is considered as testing data. Within the training dataset, an estimation dataset is created using 80% of the training dataset, and the remaining is constructed as validation data.</p>
 <p>Some exploratory data analysis can be found in the appendix.</p>
@@ -484,14 +484,23 @@ glmnet_mod = train(song_popularity ~ .,
                    data = song_trn,
                    method = &quot;glmnet&quot;,
                    trControl = cv_trn_5,
-                   tuneGrid = expand.grid(alpha = 0, lambda = seq(0.001,2,by = 0.001)))</code></pre>
+                   tuneGrid = expand.grid(alpha = 0, lambda = seq(0.001, 2, by = 0.001)))</code></pre>
 <ul>
 <li>An XGBoost model using the <code>caret</code> package fit to the estimation data, using 5-fold crossvalidation.</li>
 </ul>
-<pre class="r"><code>set.seed(42)
+<pre class="r"><code>parametersGrid = expand.grid(eta = c(.1, .2, .3), 
+                            colsample_bytree = c(0.5,0.7),
+                            max_depth = c(3,6),
+                            nrounds = 100,
+                            gamma = 1,
+                            min_child_weight = 2,
+                            subsample = 1)
+
+set.seed(42)
 xgb_mod = train(song_popularity ~ ., data = song_trn,
                       method = &quot;xgbTree&quot;,
-                      trControl = trainControl(method = &quot;cv&quot;, number = 5),
+                      trControl = cv_trn_5,
+                      tuneGrid = parametersGrid,
                       tuneLength = 2)</code></pre>
 <p>Models selection and evaluation is discussed in the results section.</p>
 </div>
@@ -547,7 +556,7 @@ Ridge Regression
 XGBoost
 </td>
 <td style="text-align:right;">
-20.54
+19.14
 </td>
 </tr>
 </tbody>
@@ -585,9 +594,10 @@ Random Forest Model
 </div>
 <div id="discussion" class="section level1">
 <h1>Discussion</h1>
-<p>After evaluation, the chosen model, a random forest model, achieves a test RMSE of 16.8982817. This error is rather large and makes predictions relatively volatile. Additionally, due to class imbalance, a lot of the predictions are centered around 40-60 range. By examining the actual versus predicted plot of the validation data, we see that our model tends to <em>overpredict</em> popularity for songs with actual popularity less than 50, and <em>underpredict</em> popularity for songs with actual popularity greater than 50. We also see that the variance in our predictions decrease as actual popularity increases; the most popular songs are still being predicted with quite low error.</p>
+<p>After evaluation, the chosen model, a random forest model, achieves a test RMSE of 16.9. This error is rather large and makes predictions relatively volatile. Additionally, due to class imbalance, a lot of the predictions are centered around 40-60 range. By examining the actual versus predicted plot of the validation data, we see that our model tends to <em>overpredict</em> popularity for songs with actual popularity less than 50, and <em>underpredict</em> popularity for songs with actual popularity greater than 50. However, we can see that as we get into the more popular songs ~ 90 - 100, we can see that our model actually predicts these values relatively well. This means that if an artist actually managed to create a chart-topping song, the model chosen through this analysis might actually be able to predict it to chop the charts. However, with how small the range of success is for this model, it’s still relatively unsuccessful.</p>
 <p>For someone using this model to determine if they should invest in an artist’s song production, we see that our model would steer someone to fund a project that would actually have low success while not allocating that money into some of the songs that would actually be more popular. Given these errors, it should be noted that this model is not particularly useful in predicting song popularity. It can be improved in the following aspects. First, more data could be included to further investigation. Second, class imbalance problem should be addressed in the future. For example, a potential solution could be picking data from different popularity ranges. Let’s say, 0-20, 20-40, 40-60, 60-80, 80-100, respectively. Then, subsampling an equal amount of data for each range. These ranges could also be further explored, and have one range be 0-50 to denote a classification of “unpopular songs” being less than 50. We can expect that a classification as such would have a much higher accuracy rate than our current regression.</p>
-<p>We strongly recommend additional research to be conducted before implementing our model for its intended use. ***</p>
+<p>We strongly recommend additional research to be conducted before implementing our model for its intended use.</p>
+<hr />
 </div>
 <div id="appendix" class="section level1">
 <h1>Appendix</h1>
@@ -604,7 +614,7 @@ Random Forest Model
 <li><code>liveness</code>: detects the presence of an audience in the recording</li>
 <li><code>loudness</code>: overall loudness of a track in decibels</li>
 <li><code>audio_mode</code>: indicates the modality (major or minor) of the track</li>
-<li><code>speechiness</code>: detects presence of spoken words in teh track; i.e. the more the track is like a talk show, the closer this metric is to 1.0</li>
+<li><code>speechiness</code>: detects presence of spoken words in the track; i.e. the more the track is like a talk show, the closer this metric is to 1.0</li>
 <li><code>tempo</code>: overall estimated tempo of a track in beats per minute</li>
 <li><code>time_signature</code>: an estimated number of how many beats are in each bar or measure</li>
 <li><code>audio_valence</code>: describes the musical positiveness conveyed by the track</li>
