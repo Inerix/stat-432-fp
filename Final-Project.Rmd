@@ -24,6 +24,7 @@ library("nnet")
 library("ranger")
 library("e1071")
 library("glmnet")
+library(doParallel)
 ```
 
 ***
@@ -61,7 +62,7 @@ data_cat = data %>%
     song_popularity > 70 & song_popularity <= 80 ~ "C",
     song_popularity > 80 & song_popularity <= 90 ~ "B",
     song_popularity > 90 & song_popularity <= 100 ~ "A"
-  )) )
+  )))
 
 # Eliminate song_name from the dataset
 song_data = data %>% 
@@ -75,11 +76,11 @@ song_data_cat = data_cat %>%
 set.seed(42)
 # test-train split
 idx = createDataPartition(song_data$song_popularity, p = .8, list = FALSE)
-song_trn = song_data[idx,]
-song_tst = song_data[-idx,]
+song_trn = song_data[idx, ]
+song_tst = song_data[-idx, ]
 
-song_trn_cat = song_data_cat[idx,]
-song_tst_cat = song_data_cat[-idx,]
+song_trn_cat = song_data_cat[idx, ]
+song_tst_cat = song_data_cat[-idx, ]
 
 # create x matrix (estimation, validation, train, and test) for use with cv.glmnet()
 song_trn_x = model.matrix(song_popularity~ ., data = song_trn)[, -1]
@@ -88,7 +89,7 @@ song_tst_x = model.matrix(song_popularity ~ ., data = song_tst)[, -1]
 cv_trn_5 = trainControl(method = "cv", number = 5)
 ```
 
-The dataset used for this analysis contains just under 19,000 songs available on Spotify and their attributes such as duration, acousticness, danceability, liveliness, and popularity. Song popularity, which is used as the response variable in this analysis, are numerical values ranging from 0 to 100, with 100 being the most popular and 0 being the least. The values are calculated by Spotify's algorithm based on total number of plays the track has had and how recent those plays are. A full description of the each of the variables in the dataset is included in the Appendix. The data was accessed through Kaggle[^3] where it was put together by a Kaggle User who used Spotify's Web API[^2] service to obtain song attributes. Spotify has over 30 million songs in the Spotify library, so 19,000 songs contained in this dataset is just a very small subset of the data. 
+The dataset used for this analysis contains just under 19,000 songs available on Spotify and their attributes such as duration, acousticness, danceability, liveliness, and popularity. Song popularity, which is used as the response variable in this analysis, are numerical values ranging from 0 to 100, with 100 being the most popular and 0 being the least. The values are calculated by Spotify's algorithm based on the total number of plays the track has had and how recent those plays are. A full description of the each of the variables in the dataset is included in the Appendix. The data was accessed through Kaggle[^3] where it was put together by a Kaggle User who used Spotify's Web API[^2] service to obtain song attributes. Spotify has over 30 million songs in the Spotify library, so 19,000 songs contained in this dataset is just a very small subset of the data. 
 
 The data is highly imbalanced as the majority of observations have `song_popularity` value of around 60, and the values are right-skewed. 
 
@@ -111,7 +112,7 @@ lm_1 = train(song_popularity ~ .,
 ```
 
 ```{r lm1-rmse}
-lm_1_rmse = lm_1$results[,2]
+lm_1_rmse = lm_1$results[, 2]
 ```
 
 - A linear regression with reduced features fit to estimation data.
@@ -140,12 +141,13 @@ mod_glm = train(song_popularity ~ ., data = song_trn,
 ```
 
 ```{r glm-rmse, eval = FALSE}
-glm_rmse = mod_glm$results[,2]
+glm_rmse = mod_glm$results[, 2]
 ```
 
 - A random forest model used for regression from the `randomForest` package fit to the estimation data.
 
 ```{r random-forest, echo = TRUE}
+
 set.seed(42)
 rf_mod = randomForest(song_popularity ~ .,
                       data = song_trn,
@@ -158,6 +160,12 @@ rf_rmse = sqrt(rf_mod$mse[500])
 
 - A ridge regression model using cv.glmnet() from the `glmnet` package fit to the estimation data, using 10-fold cross-validation for lambda.
 
+```{r parallel-setup}
+cl = makeForkCluster(3)
+registerDoParallel(cl)
+```
+
+
 ```{r ridge-regression, echo = TRUE}
 lambdas = 10^seq(3, -2, by = -.1)
 
@@ -166,25 +174,35 @@ glmnet_mod = train(song_popularity ~ .,
                    data = song_trn,
                    method = "glmnet",
                    trControl = cv_trn_5,
-                   tuneGrid = expand.grid(alpha = 0, lambda = seq(0.001,2,by = 0.001)))
+                   tuneGrid = expand.grid(alpha = 0, lambda = seq(0.001, 2, by = 0.001)))
 ```
 
 ```{r glmnet-rmse}
-glmnet_rmse = min(glmnet_mod$results[,3])
+glmnet_rmse = min(glmnet_mod$results[, 3])
 ```
 
 - An XGBoost model using the `caret` package fit to the estimation data, using 5-fold crossvalidation.
 
 ```{r xgboost-model, echo = TRUE}
+parametersGrid = expand.grid(eta = c(.1, .2, .3), 
+                            colsample_bytree = c(0.5,0.7),
+                            max_depth = c(3,6),
+                            nrounds = 100,
+                            gamma = 1,
+                            min_child_weight = 2,
+                            subsample = 1)
+
 set.seed(42)
 xgb_mod = train(song_popularity ~ ., data = song_trn,
                       method = "xgbTree",
-                      trControl = trainControl(method = "cv", number = 5),
+                      trControl = cv_trn_5,
+                      tuneGrid = parametersGrid,
                       tuneLength = 2)
 ```
 
 ```{r xgb_rmse}
-xgb_rmse = min(xgb_mod$results[,8])
+xgb_rmse = min(xgb_mod$results[, 8])
+stopImplicitCluster()
 ```
 
 
@@ -208,8 +226,7 @@ tibble(
                         lm_2_rmse,
                         rf_rmse,
                         glmnet_rmse,
-                        xgb_rmse)
-) %>% 
+                        xgb_rmse)) %>% 
   kable(digits = 2) %>% 
   kable_styling("striped", full_width = FALSE)
 ```
@@ -240,21 +257,21 @@ gd01 %>%
   ylab("Predicted")
 
 # Report test RMSE
-tibble("Model" = "Random Forest Model",
-       "Test RMSE" = rf_mod_tst_rmse) %>% 
-kable(digits = 2) %>% 
-kable_styling("striped", full_width = FALSE)
+tibble("Model" = "Random Forest Model", "Test RMSE" = rf_mod_tst_rmse) %>% 
+  kable(digits = 2) %>% 
+  kable_styling("striped", full_width = FALSE)
 ```
 
 ***
 
 # Discussion
 
-After evaluation, the chosen model, a random forest model, achieves a test RMSE of `r rf_mod_tst_rmse`. This error is rather large and makes predictions relatively volatile. Additionally, due to class imbalance, a lot of the predictions are centered around 40-60 range. By examining the actual versus predicted plot of the validation data, we see that our model tends to *overpredict* popularity for songs with actual popularity less than 50, and *underpredict* popularity for songs with actual popularity greater than 50. We also see that the variance in our predictions decrease as actual popularity increases; the most popular songs are still being predicted with quite low error. 
+After evaluation, the chosen model, a random forest model, achieves a test RMSE of `r round(rf_mod_tst_rmse,2)`. This error is rather large and makes predictions relatively volatile. Additionally, due to class imbalance, a lot of the predictions are centered around 40-60 range. By examining the actual versus predicted plot of the validation data, we see that our model tends to *overpredict* popularity for songs with actual popularity less than 50, and *underpredict* popularity for songs with actual popularity greater than 50. However, we can see that as we get into the more popular songs ~ 90 - 100, we can see that our model actually predicts these values relatively well. This means that if an artist actually managed to create a chart-topping song, the model chosen through this analysis might actually be able to predict it to chop the charts. However, with how small the range of success is for this model, it's still relatively unsuccessful. 
 
 For someone using this model to determine if they should invest in an artist's song production, we see that our model would steer someone to fund a project that would actually have low success while not allocating that money into some of the songs that would actually be more popular. Given these errors, it should be noted that this model is not particularly useful in predicting song popularity. It can be improved in the following aspects. First, more data could be included to further investigation. Second, class imbalance problem should be addressed in the future. For example, a potential solution could be picking data from different popularity ranges. Let's say, 0-20, 20-40, 40-60, 60-80, 80-100, respectively. Then, subsampling an equal amount of data for each range. These ranges could also be further explored, and have one range be 0-50 to denote a classification of "unpopular songs" being less than 50. We can expect that a classification as such would have a much higher accuracy rate than our current regression.
 
 We strongly recommend additional research to be conducted before implementing our model for its intended use.
+
 ***
 
 # Appendix
@@ -271,7 +288,7 @@ We strongly recommend additional research to be conducted before implementing ou
 - `liveness`: detects the presence of an audience in the recording
 - `loudness`: overall loudness of a track in decibels
 - `audio_mode`: indicates the modality (major or minor) of the track
-- `speechiness`: detects presence of spoken words in teh track; i.e. the more the track is like a talk show, the closer this metric is to 1.0
+- `speechiness`: detects presence of spoken words in the track; i.e. the more the track is like a talk show, the closer this metric is to 1.0
 - `tempo`: overall estimated tempo of a track in beats per minute
 - `time_signature`: an estimated number of how many beats are in each bar or measure
 - `audio_valence`: describes the musical positiveness conveyed by the track 
@@ -343,5 +360,3 @@ gridExtra::grid.arrange(p02, p03, p07, p08, p09, p10, ncol = 3)
 [^2]: [Spotify: API](https://developer.spotify.com/documentation/web-api/reference/tracks/get-audio-features/)
 [^3]: [Kaggle: 19,000 Spotify Songs](https://www.kaggle.com/edalrami/19000-spotify-songs)
 [^4]: [Spotify Growth numbers](https://www.theverge.com/2019/4/29/18522297/spotify-100-million-users-apple-music-podcasting-free-users-advertising-voice-speakers)
-
-
