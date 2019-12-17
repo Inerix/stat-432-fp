@@ -89,7 +89,7 @@ song_tst_x = model.matrix(song_popularity ~ ., data = song_tst)[, -1]
 cv_trn_5 = trainControl(method = "cv", number = 5)
 ```
 
-The dataset used for this analysis contains just under 19,000 songs available on Spotify and their attributes such as duration, acousticness, danceability, liveliness, and popularity. Song popularity, which is used as the response variable in this analysis, are numerical values ranging from 0 to 100, with 100 being the most popular and 0 being the least. The values are calculated by Spotify's algorithm based on the total number of plays the track has had and how recent those plays are. A full description of the each of the variables in the dataset is included in the Appendix. The data was accessed through Kaggle[^3] where it was put together by a Kaggle User who used Spotify's Web API[^2] service to obtain song attributes. Spotify has over 30 million songs in the Spotify library, so 19,000 songs contained in this dataset is just a very small subset of the data. 
+The dataset used for this analysis contains just under 19,000 songs available on Spotify and their attributes such as duration, acousticness, danceability, liveliness, and popularity. Song popularity, which is used as the response variable in this analysis, are numerical values ranging from 0 to 100, with 100 being the most popular and 0 being the least. The values are calculated by Spotify's algorithm based on the total number of plays the track has had and how recent those plays are. A full description of the each of the variables in the dataset is included in the Appendix. The data was accessed through Kaggle[^3] where it was put together by a Kaggle User who used Spotify's Web API[^2] service to obtain song attributes. Spotify has over 30 million songs in the Spotify library, so 19,000 songs contained in this dataset is just a very small subset of the data.
 
 The data is highly imbalanced as the majority of observations have `song_popularity` value of around 60, and the values are right-skewed. 
 
@@ -99,9 +99,9 @@ Some exploratory data analysis can be found in the appendix.
 
 ## Modeling
 
-In order to predict the popularity of songs, two modeling techniques were considered: linear models and tree-based models. Specifically, a simple linear model with all available features, a linear model with significant features, a generalized regression model using 5-fold crossvalidation, a random forest model from `randomForest` package, a ridge regression model, and an Xgboost model are used.
+In order to predict the popularity of songs, two modeling techniques were considered: linear models and tree-based models. Specifically, a simple linear model with all available features, a linear model with significant features, a random forest model, a ridge regression model, and an Xgboost model were used.
 
-- A simple linear model using all available features fit to the estimation data.
+- A simple linear model using all available features fit to the training data.
 
 ```{r linear-models, echo = TRUE}
 set.seed(42)
@@ -127,48 +127,30 @@ lm_2 = train(song_popularity ~ tempo + danceability + instrumentalness +
 ```
 
 ```{r lm2-rmse}
-lm_2_rmse = lm_2$results[,2]
+lm_2_rmse = lm_2$results[, 2]
 ```
 
-- A generalized linear model using 5-fold cross validation fit to estimation dataset.
-
-```{r glm, echo = TRUE, eval = FALSE}
-set.seed(42)
-mod_glm = train(song_popularity ~ ., data = song_trn, 
-                     method = "glm", 
-                     metric = "RMSE", 
-                     trControl = cv_trn_5)
-```
-
-```{r glm-rmse, eval = FALSE}
-glm_rmse = mod_glm$results[, 2]
-```
-
-- A random forest model used for regression from the `randomForest` package fit to the estimation data.
-
-```{r random-forest, echo = TRUE}
-
-set.seed(42)
-rf_mod = randomForest(song_popularity ~ .,
-                      data = song_trn,
-                      trControl = cv_trn_5)
-```
-
-```{r rf-rmse}
-rf_rmse = sqrt(rf_mod$mse[500])
-```
-
-- A ridge regression model using cv.glmnet() from the `glmnet` package fit to the estimation data, using 10-fold cross-validation for lambda.
+- A random forest model which used 5-fold cross validation to find the optimal mtry
 
 ```{r parallel-setup}
 cl = makeForkCluster(3)
 registerDoParallel(cl)
 ```
 
+```{r random-forest, echo = TRUE}
+set.seed(42)
+rf_mod = train(song_popularity ~ .,
+               data = song_trn,
+               trControl = cv_trn_5)
+```
+
+```{r rf-rmse}
+rf_rmse = sqrt(rf_mod$mse[500])
+```
+
+- A ridge regression model which used 5-fold cross validation to find the optimal lambda.
 
 ```{r ridge-regression, echo = TRUE}
-lambdas = 10^seq(3, -2, by = -.1)
-
 set.seed(42)
 glmnet_mod = train(song_popularity ~ .,
                    data = song_trn,
@@ -181,7 +163,7 @@ glmnet_mod = train(song_popularity ~ .,
 glmnet_rmse = min(glmnet_mod$results[, 3])
 ```
 
-- An XGBoost model using the `caret` package fit to the estimation data, using 5-fold crossvalidation.
+- An XGBoost model which used 5-fold cross validation to grid search for the best combination of hyper parameters.
 
 ```{r xgboost-model, echo = TRUE}
 parametersGrid = expand.grid(eta = c(.1, .2, .3), 
@@ -205,7 +187,6 @@ xgb_rmse = min(xgb_mod$results[, 8])
 stopImplicitCluster()
 ```
 
-
 Models selection and evaluation is discussed in the results section.
 
 ## Evaluation
@@ -217,7 +198,6 @@ calc_rmse = function(actual, predicted) {
   sqrt(mean( (actual - predicted) ^ 2) )
 }
 ```
-
 
 ```{r numeric-results}
 tibble(
@@ -266,7 +246,7 @@ tibble("Model" = "Random Forest Model", "Test RMSE" = rf_mod_tst_rmse) %>%
 
 # Discussion
 
-After evaluation, the chosen model, a random forest model, achieves a test RMSE of `r round(rf_mod_tst_rmse,2)`. This error is rather large and makes predictions relatively volatile. Additionally, due to class imbalance, a lot of the predictions are centered around 40-60 range. By examining the actual versus predicted plot of the validation data, we see that our model tends to *overpredict* popularity for songs with actual popularity less than 50, and *underpredict* popularity for songs with actual popularity greater than 50. However, we can see that as we get into the more popular songs ~ 90 - 100, we can see that our model actually predicts these values relatively well. This means that if an artist actually managed to create a chart-topping song, the model chosen through this analysis might actually be able to predict it to chop the charts. However, with how small the range of success is for this model, it's still relatively unsuccessful. 
+After evaluation, the chosen model, a random forest model, achieves a test RMSE of `r round(rf_mod_tst_rmse,2)`. This error is rather large and makes predictions relatively volatile. Additionally, due to class imbalance, a lot of the predictions are centered around 40-60 range. By examining the actual versus predicted plot of the validation data, we see that our model tends to *overpredict* popularity for songs with actual popularity less than 50, and *underpredict* popularity for songs with actual popularity greater than 50. However, we can see that as we get into the more popular songs ~ 90 - 100, we can see that our model actually predicts these values relatively well. This means that if an artist actually managed to create a chart-topping song, the model chosen through this analysis might actually be able to predict it to chop the charts. However, with how small the range of success is for this model, it's still relatively unsuccessful.
 
 For someone using this model to determine if they should invest in an artist's song production, we see that our model would steer someone to fund a project that would actually have low success while not allocating that money into some of the songs that would actually be more popular. Given these errors, it should be noted that this model is not particularly useful in predicting song popularity. It can be improved in the following aspects. First, more data could be included to further investigation. Second, class imbalance problem should be addressed in the future. For example, a potential solution could be picking data from different popularity ranges. Let's say, 0-20, 20-40, 40-60, 60-80, 80-100, respectively. Then, subsampling an equal amount of data for each range. These ranges could also be further explored, and have one range be 0-50 to denote a classification of "unpopular songs" being less than 50. We can expect that a classification as such would have a much higher accuracy rate than our current regression.
 
